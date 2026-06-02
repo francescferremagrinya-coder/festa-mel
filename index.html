@@ -239,6 +239,7 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
     <div id="dragGhost"><canvas id="ghostCanvas"></canvas></div>
     <div class="pieces-tray" id="tray"></div>
     <p class="hint">Arrossega les peces al cor · Toca una zona per treure-la ↩️</p>
+    <p id="wrongHint" style="font-family:'Fredoka One',cursive;font-size:.95rem;color:#FF5050;text-align:center;margin-top:6px;opacity:0;transition:opacity .4s;">⚠️ Alguna peça no és al lloc correcte!</p>
   </div>
 </div>
 
@@ -389,7 +390,7 @@ function redrawBoard(){
   const cv=document.getElementById('puzzleCanvas'),ctx=cv.getContext('2d'),sz=cv.width,s=sz/300;
   ctx.clearRect(0,0,sz,sz);ctx.fillStyle='white';ctx.fillRect(0,0,sz,sz);
   ctx.save();hP(ctx,sz);ctx.fillStyle='#F3EAF9';ctx.fill();ctx.restore();
-  for(let z=0;z<6;z++){if(zoneMap[z]!==null){const c=pC(z),r=pR(z);ctx.save();hP(ctx,sz);ctx.clip();ctx.drawImage(gameImg,c*gameImg.width/COLS,r*gameImg.height/ROWS,gameImg.width/COLS,gameImg.height/ROWS,c*sz/COLS,r*sz/ROWS,sz/COLS,sz/ROWS);ctx.strokeStyle='rgba(199,125,255,0.4)';ctx.lineWidth=2*s;ctx.strokeRect(c*sz/COLS+1,r*sz/ROWS+1,sz/COLS-2,sz/ROWS-2);ctx.restore();}}
+  for(let z=0;z<6;z++){if(zoneMap[z]!==null){const pid=zoneMap[z];const pc=pC(pid),pr=pR(pid);const dc=pC(z),dr=pR(z);ctx.save();hP(ctx,sz);ctx.clip();ctx.drawImage(gameImg,pc*gameImg.width/COLS,pr*gameImg.height/ROWS,gameImg.width/COLS,gameImg.height/ROWS,dc*sz/COLS,dr*sz/ROWS,sz/COLS,sz/ROWS);ctx.strokeStyle='rgba(199,125,255,0.4)';ctx.lineWidth=2*s;ctx.strokeRect(dc*sz/COLS+1,dr*sz/ROWS+1,sz/COLS-2,sz/ROWS-2);ctx.restore();}}
   ctx.save();hP(ctx,sz);ctx.clip();ctx.strokeStyle='#D4A8EE';ctx.lineWidth=1.5*s;ctx.setLineDash([5,4]);[[0,sz/2,sz,sz/2],[sz/3,0,sz/3,sz],[2*sz/3,0,2*sz/3,sz]].forEach(([x1,y1,x2,y2])=>{ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();});ctx.setLineDash([]);ctx.font=`bold ${13*s}px Nunito,sans-serif`;ctx.fillStyle='rgba(180,120,220,0.4)';ctx.textAlign='center';ctx.textBaseline='middle';for(let z=0;z<6;z++)if(zoneMap[z]===null)ctx.fillText(z+1,(pC(z)+0.5)*sz/COLS,(pR(z)+0.5)*sz/ROWS);ctx.restore();
   ctx.save();hP(ctx,sz);ctx.strokeStyle='#C77DFF';ctx.lineWidth=4*s;ctx.stroke();ctx.restore();
   for(let i=0;i<6;i++)document.getElementById('dot'+i).classList.toggle('done',zoneMap[i]!==null);
@@ -419,7 +420,47 @@ function zA(x,y,sz){const c=Math.floor(x/(sz/COLS)),r=Math.floor(y/(sz/ROWS));re
 function ePos(e){if(e.changedTouches?.length)return{x:e.changedTouches[0].clientX,y:e.changedTouches[0].clientY};if(e.touches?.length)return{x:e.touches[0].clientX,y:e.touches[0].clientY};return{x:e.clientX,y:e.clientY};}
 function moveGhost(cx,cy){const g=document.getElementById('dragGhost');g.style.left=(cx-dragOffX)+'px';g.style.top=(cy-dragOffY)+'px';}
 function hlBoard(on){redrawBoard();if(on){const cv=document.getElementById('puzzleCanvas'),ctx=cv.getContext('2d'),sz=cv.width;ctx.save();hP(ctx,sz);ctx.clip();for(let z=0;z<6;z++)if(zoneMap[z]===null){ctx.fillStyle='rgba(199,125,255,0.13)';ctx.fillRect(pC(z)*sz/COLS,pR(z)*sz/ROWS,sz/COLS,sz/ROWS);}ctx.restore();ctx.save();hP(ctx,sz);ctx.strokeStyle='#C77DFF';ctx.lineWidth=4*(sz/300);ctx.stroke();ctx.restore();}}
-function placeOn(pid,z){zoneMap[z]=pid;const el=document.getElementById('piece-'+pid);if(el)el.classList.add('placed');redrawBoard();if(navigator.vibrate)navigator.vibrate([30,20,60]);if(Object.values(zoneMap).every(v=>v!==null)){savedSecs=timerSecs;stopClock();setTimeout(()=>{launchConfetti();showScreen('celebration');},700);}}
+function placeOn(pid,z){
+  zoneMap[z]=pid;
+  const el=document.getElementById('piece-'+pid);
+  if(el)el.classList.add('placed');
+  redrawBoard();
+  if(navigator.vibrate)navigator.vibrate([30,20,60]);
+  // Totes les zones ocupades?
+  if(Object.values(zoneMap).every(v=>v!==null)){
+    // Cada peça ha d'estar a la seva zona correcta (pieceId === zoneId)
+    const correct=Object.entries(zoneMap).every(([zone,piece])=>parseInt(piece)===parseInt(zone));
+    if(correct){
+      savedSecs=timerSecs;stopClock();
+      setTimeout(()=>{launchConfetti();showScreen('celebration');},700);
+    } else {
+      // Error! Tremolar i destacar les peces mal posades
+      if(navigator.vibrate)navigator.vibrate([80,40,80,40,80]);
+      shakeWrongPieces();
+    }
+  }
+}
+function shakeWrongPieces(){
+  const cv=document.getElementById('puzzleCanvas'),ctx=cv.getContext('2d'),sz=cv.width,s=sz/300;
+  // Pintar en vermell les zones incorrectes
+  ctx.save();hP(ctx,sz);ctx.clip();
+  Object.entries(zoneMap).forEach(([zone,piece])=>{
+    if(piece===null) return;
+    if(parseInt(piece)!==parseInt(zone)){
+      const c=pC(parseInt(zone)),r=pR(parseInt(zone));
+      ctx.fillStyle='rgba(255,80,80,0.25)';
+      ctx.fillRect(c*sz/COLS,r*sz/ROWS,sz/COLS,sz/ROWS);
+      ctx.strokeStyle='rgba(255,80,80,0.8)';ctx.lineWidth=3*s;
+      ctx.strokeRect(c*sz/COLS+2,r*sz/ROWS+2,sz/COLS-4,sz/ROWS-4);
+    }
+  });
+  ctx.restore();
+  ctx.save();hP(ctx,sz);ctx.strokeStyle='#C77DFF';ctx.lineWidth=4*s;ctx.stroke();ctx.restore();
+  // Missatge d'error breu
+  const hint=document.getElementById('wrongHint');
+  if(hint){hint.style.opacity='1';setTimeout(()=>hint.style.opacity='0',2500);}
+  setTimeout(redrawBoard,2600);
+}
 function removeZ(z){const pid=zoneMap[z];if(pid===null)return;zoneMap[z]=null;const el=document.getElementById('piece-'+pid);if(el)el.classList.remove('placed');redrawBoard();if(navigator.vibrate)navigator.vibrate(20);}
 
 // ════════════════════════
@@ -427,7 +468,26 @@ function removeZ(z){const pid=zoneMap[z];if(pid===null)return;zoneMap[z]=null;co
 // ════════════════════════
 const PAL=['#FF6B9D','#FF4466','#FF9A3C','#FFD93D','#AADD44','#6BCFB0','#44BBFF','#6BB5FF','#8866FF','#C77DFF','#FF88CC','#FFFFFF','#333333'];
 let curColor='#FF6B9D',colorHist=[],colorImg=new Image();
-function goColoring(){stopClock();const badge=document.getElementById('colorTimerBadge');if(savedSecs>0){const m=Math.floor(savedSecs/60),s=savedSecs%60;badge.textContent='⏱️ '+m+':'+String(s).padStart(2,'0')+' restants';badge.className='timer-badge';}else{badge.textContent='✅ Temps lliure!';badge.className='timer-badge done';}showScreen('coloring');colorHist=[];setupPalette();const sz=Math.min(window.innerWidth-28,320);const cv=document.getElementById('colorCanvas');cv.width=sz;cv.height=sz;cv.style.width=sz+'px';cv.style.height=sz+'px';colorImg=new Image();colorImg.onload=()=>{drawCB(cv.getContext('2d'),sz);saveH();};colorImg.src=PUZZLE_SRC;cv.addEventListener('mousedown',e=>fillAt(cv,...getXYcv(cv,e)));cv.addEventListener('touchstart',e=>{e.preventDefault();fillAt(cv,...getXYcv(cv,e));},{passive:false});}
+let _colorMouseHandler=null,_colorTouchHandler=null;
+function goColoring(){
+  stopClock();
+  const badge=document.getElementById('colorTimerBadge');
+  if(savedSecs>0){const m=Math.floor(savedSecs/60),s=savedSecs%60;badge.textContent='⏱️ '+m+':'+String(s).padStart(2,'0')+' restants';badge.className='timer-badge';}
+  else{badge.textContent='✅ Temps lliure!';badge.className='timer-badge done';}
+  showScreen('coloring');
+  colorHist=[];setupPalette();
+  const sz=Math.min(window.innerWidth-28,320);
+  const cv=document.getElementById('colorCanvas');
+  cv.width=sz;cv.height=sz;cv.style.width=sz+'px';cv.style.height=sz+'px';
+  // Netejar listeners antics per evitar acumulació
+  if(_colorMouseHandler) cv.removeEventListener('mousedown',_colorMouseHandler);
+  if(_colorTouchHandler) cv.removeEventListener('touchstart',_colorTouchHandler);
+  _colorMouseHandler=e=>fillAt(cv,...getXYcv(cv,e));
+  _colorTouchHandler=e=>{e.preventDefault();fillAt(cv,...getXYcv(cv,e));};
+  cv.addEventListener('mousedown',_colorMouseHandler);
+  cv.addEventListener('touchstart',_colorTouchHandler,{passive:false});
+  colorImg=new Image();colorImg.onload=()=>{drawCB(cv.getContext('2d'),sz);saveH();};colorImg.src=PUZZLE_SRC;
+}
 function setupPalette(){const pal=document.getElementById('palette');pal.innerHTML='';PAL.forEach((col,i)=>{const b=document.createElement('button');b.className='cbtn'+(i===0?' active':'');b.style.background=col;if(col==='#FFFFFF')b.style.border='3px solid #ddd';b.onclick=()=>{pal.querySelectorAll('.cbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');curColor=col;};pal.appendChild(b);});const er=document.createElement('button');er.className='cbtn';er.textContent='🧹';er.onclick=()=>{pal.querySelectorAll('.cbtn').forEach(x=>x.classList.remove('active'));er.classList.add('active');curColor='__erase__';};pal.appendChild(er);}
 function drawCB(ctx,sz){ctx.clearRect(0,0,sz,sz);ctx.fillStyle='white';ctx.fillRect(0,0,sz,sz);ctx.save();hP(ctx,sz);ctx.clip();ctx.drawImage(colorImg,0,0,sz,sz);ctx.restore();ctx.save();hP(ctx,sz);ctx.strokeStyle='#C77DFF';ctx.lineWidth=4;ctx.stroke();ctx.restore();}
 function saveH(){const cv=document.getElementById('colorCanvas');if(!cv)return;colorHist.push(cv.toDataURL());if(colorHist.length>30)colorHist.shift();}
