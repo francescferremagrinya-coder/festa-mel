@@ -631,9 +631,22 @@ function genWorld2(){
   }
   // COFFEES — molts més! Un cada ~150px
   let ex=300;
-  while(ex<gWORLD-300){
-    gCoffees.push({x:ex,y:gGY-34,w:32,h:34,vx:(Math.random()>0.5?1:-1)*1.4,alive:true,vy:0});
-    ex+=130+Math.random()*120;
+  // Coffees: un per cada segment de terra, caminen d'un costat a l'altre sense caure
+  for(const p of gPlatforms){
+    if(p.t!=='g') continue; // només terra
+    if(p.w<80) continue;    // segments massa curts, no
+    // Posar 1-2 coffees per segment llarg
+    const nDogs = p.w>300 ? 2 : 1;
+    for(let d=0;d<nDogs;d++){
+      const cx = p.x + p.w*0.25 + d*(p.w*0.4);
+      gCoffees.push({
+        x: cx, y: p.y-34, w:32, h:34,
+        vx:(Math.random()>0.5?1:-1)*1.5,
+        alive:true, vy:0,
+        // Límits del segment on viu aquest coffee
+        minX: p.x+10, maxX: p.x+p.w-42
+      });
+    }
   }
   // Nigiris al terra
   let nx2=300;
@@ -659,13 +672,12 @@ function gUpdate2(){
   // Coffees
   for(const c of gCoffees){
     if(!c.alive)continue;
-    c.x+=c.vx;c.vy+=gGRAV;c.y+=c.vy;
-    let onp=false;
-    for(const p of gPlatforms){
-      if(c.x+c.w>p.x&&c.x<p.x+p.w&&c.y+c.h>=p.y&&c.y+c.h<=p.y+p.h&&c.vy>=0){c.y=p.y-c.h;c.vy=0;onp=true;break;}
+    c.x+=c.vx;
+    // Girar quan arriba als límits del seu segment (no cauen mai)
+    if(c.minX!==undefined){
+      if(c.x<=c.minX){c.x=c.minX;c.vx=Math.abs(c.vx);}
+      if(c.x>=c.maxX){c.x=c.maxX;c.vx=-Math.abs(c.vx);}
     }
-    if(onp){let atEdge=true;for(const p of gPlatforms){if(c.x+c.w+2>p.x&&c.x-2<p.x+p.w&&c.y+c.h>=p.y&&c.y+c.h<=p.y+p.h+4){atEdge=false;break;}}if(atEdge)c.vx*=-1;}
-    if(c.y>gCH+100){c.alive=false;continue;}
     const cx=c.x-cam;if(cx<-50||cx>gCW+50)continue;
     // Col·lisió — UN TOC = MORT (sense mode gran)
     if(GM.x+GM.w-6>cx&&GM.x+6<cx+c.w&&GM.y+GM.h>c.y&&GM.y<c.y+c.h){
@@ -828,21 +840,89 @@ function gWin2(){if(marioRAF)cancelAnimationFrame(marioRAF);GM.won=true;document
 // MÚSICA 8-BIT REGGAE
 // ══════════════════════════════
 let audioCtx=null,musicNodes=[],musicPlaying=false,musicScheduler=null;
-const BPM2=88,B2=60/BPM2;
-const MEL2=[329.63,0.75,392.00,0.25,440.00,0.5,392.00,0.5,329.63,0.5,293.66,0.5,261.63,1.0,0,0.5,261.63,0.25,293.66,0.25,329.63,0.5,392.00,0.5,440.00,0.75,392.00,0.25,329.63,0.5,261.63,0.5,220.00,1.5,0,0.5,261.63,0.25,293.66,0.25,329.63,0.5,392.00,0.25,440.00,0.25,523.25,0.5,493.88,0.5,440.00,0.5,392.00,0.25,329.63,0.25,293.66,0.5,261.63,0.5,220.00,0.5,261.63,0.5,293.66,0.5,329.63,0.5,392.00,0.75,329.63,0.25,261.63,0.5,220.00,0.5,329.63,0.5,293.66,0.5,220.00,1.5,0,0.5];
+// Música original — alegre i lleuger, tipus cançó infantil tranquil·la
+// BPM 112, escala Sol major, fluïda i agradable
+const BPM2=112, B2=60/BPM2;
+const MEL2=[
+  // Frase A — dolça i saltironada
+  392.00,0.5, 493.88,0.5, 587.33,0.5, 493.88,0.5,
+  392.00,0.5, 349.23,0.5, 392.00,1.0,
+  0,0.25,
+  // Frase B — resposta melodiosa
+  493.88,0.5, 587.33,0.5, 659.25,0.5, 587.33,0.5,
+  493.88,0.5, 440.00,0.5, 392.00,1.0,
+  0,0.25,
+  // Frase C — una mica de moviment, amunt
+  392.00,0.25, 440.00,0.25, 493.88,0.5,
+  523.25,0.25, 587.33,0.25, 659.25,0.5,
+  587.33,0.5,  493.88,0.25, 440.00,0.25,
+  392.00,0.5,  349.23,0.5,
+  // Frase D — resolució càlida
+  392.00,0.5, 493.88,0.5, 587.33,0.5, 659.25,0.5,
+  587.33,0.25, 493.88,0.25, 440.00,0.5, 392.00,0.5,
+  349.23,0.5,  392.00,1.5,
+  0,0.5,
+];
 function initAudio(){if(audioCtx)return;audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
 function pN(freq,startTime,duration,type,vol){if(!audioCtx||freq===0)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.setValueAtTime(freq,startTime);g.gain.setValueAtTime(0,startTime);g.gain.linearRampToValueAtTime(vol,startTime+0.01);g.gain.setValueAtTime(vol,startTime+duration*0.65);g.gain.linearRampToValueAtTime(0,startTime+duration*0.95);o.connect(g);g.connect(audioCtx.destination);o.start(startTime);o.stop(startTime+duration+0.05);musicNodes.push(o);}
 function pDrum(type,startTime){if(!audioCtx)return;const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*0.12,audioCtx.sampleRate),data=buf.getChannelData(0);if(type==='kick'){for(let i=0;i<data.length;i++)data[i]=Math.sin(2*Math.PI*60*i/audioCtx.sampleRate)*Math.exp(-i/(audioCtx.sampleRate*0.04));}else if(type==='snare'){for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(audioCtx.sampleRate*0.05));}else{for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(audioCtx.sampleRate*0.012));}const src=audioCtx.createBufferSource(),g=audioCtx.createGain();const vol=type==='kick'?0.2:type==='snare'?0.12:0.04;g.gain.setValueAtTime(vol,startTime);g.gain.linearRampToValueAtTime(0,startTime+0.1);src.buffer=buf;src.connect(g);g.connect(audioCtx.destination);src.start(startTime);musicNodes.push(src);}
 function scheduleMusic(){
   if(!audioCtx||!musicPlaying)return;
   const start=audioCtx.currentTime+0.05;
+
+  // ── Melodia (triangle wave — so suau i càlid, no agressiu) ──
   let t=start;
-  for(let i=0;i<MEL2.length;i+=2){const freq=MEL2[i],dur=MEL2[i+1]*B2;pN(freq,t,dur,'square',0.07);t+=dur;}
+  for(let i=0;i<MEL2.length;i+=2){
+    const freq=MEL2[i],dur=MEL2[i+1]*B2;
+    pN(freq,t,dur,'triangle',0.10);
+    // Harmonia suau una quinta per sota
+    if(freq>0) pN(freq*0.667,t,dur*0.8,'triangle',0.03);
+    t+=dur;
+  }
   const totalDur=t-start;
   const nBars=Math.ceil(totalDur/(4*B2));
-  const bNotes=[110.00,110.00,87.31,98.00],chords=[[220,329.63,392],[174.61,261.63,349.23],[130.81,261.63,329.63],[98,196,293.66]];
-  for(let bar=0;bar<nBars;bar++){const bs=start+bar*4*B2,bn=bNotes[bar%bNotes.length],ch=chords[bar%chords.length];pN(bn,bs,B2*0.8,'sawtooth',0.05);pN(bn*1.5,bs+2*B2,B2*0.8,'sawtooth',0.04);pN(bn,bs+1.5*B2,B2*0.4,'sawtooth',0.03);pN(bn,bs+3.5*B2,B2*0.4,'sawtooth',0.03);[0.5,1.5,2.5,3.5].forEach(off=>ch.forEach(f=>pN(f,bs+off*B2,B2*0.3,'square',0.02)));pDrum('kick',bs);pDrum('kick',bs+2*B2);pDrum('snare',bs+B2);pDrum('snare',bs+3*B2);for(let h=0;h<8;h++)pDrum('hihat',bs+h*B2*0.5);}
-  musicScheduler=setTimeout(()=>{if(musicPlaying)scheduleMusic();},(totalDur-0.2)*1000);
+
+  // ── Baix suau (sine wave — molt càlid) ──
+  const bassNotes=[98.00,98.00,130.81,146.83]; // G G C D
+  for(let bar=0;bar<nBars;bar++){
+    const bs=start+bar*4*B2;
+    const bn=bassNotes[bar%bassNotes.length];
+    // Baix en negres simples, sense pressa
+    [0,1,2,3].forEach(beat=>{
+      pN(bn,bs+beat*B2,B2*0.7,'sine',0.08);
+    });
+  }
+
+  // ── Acords suaus (square wave tènue) ──
+  const chords=[
+    [196.00,246.94,293.66], // G
+    [196.00,246.94,293.66], // G
+    [261.63,329.63,392.00], // C
+    [293.66,369.99,440.00], // D
+  ];
+  for(let bar=0;bar<nBars;bar++){
+    const bs=start+bar*4*B2;
+    const ch=chords[bar%chords.length];
+    // Acords en temps 1 i 3 — lleuger, com una caixa de música
+    [0,2].forEach(beat=>{
+      ch.forEach(f=>pN(f,bs+beat*B2,B2*0.6,'square',0.018));
+    });
+  }
+
+  // ── Percussió molt lleugera (sols hihat suau) ──
+  for(let bar=0;bar<nBars;bar++){
+    const bs=start+bar*4*B2;
+    // Kick suau al 1
+    pDrum('kick',bs);
+    pDrum('kick',bs+2*B2);
+    // Snare molt suau al 2 i 4
+    pDrum('snare',bs+B2);
+    pDrum('snare',bs+3*B2);
+    // Hihat en negres (no en corxeres — menys frenètic)
+    for(let h=0;h<4;h++) pDrum('hihat',bs+h*B2);
+  }
+
+  musicScheduler=setTimeout(()=>{if(musicPlaying)scheduleMusic();},(totalDur-0.3)*1000);
 }
 function startMusic(){initAudio();if(musicPlaying)return;musicPlaying=true;if(audioCtx.state==='suspended')audioCtx.resume();scheduleMusic();document.getElementById('musicBtn').textContent='🔇';}
 function pauseMusic(){musicPlaying=false;clearTimeout(musicScheduler);musicNodes.forEach(n=>{try{n.stop();}catch(e){}});musicNodes=[];}
