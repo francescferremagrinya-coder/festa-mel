@@ -840,9 +840,8 @@ function gWin2(){if(marioRAF)cancelAnimationFrame(marioRAF);GM.won=true;document
 // MÚSICA 8-BIT REGGAE
 // ══════════════════════════════
 let audioCtx=null,musicNodes=[],musicPlaying=false,musicScheduler=null;
-// Música original — alegre i lleuger, tipus cançó infantil tranquil·la
-// BPM 112, escala Sol major, fluïda i agradable
-const BPM2=112, B2=60/BPM2;
+// Música: fitxer MP3 extern carregat en base64
+const BPM2=112, B2=60/BPM2; // mantenim per compatibilitat
 const MEL2=[
   // Frase A — dolça i saltironada
   392.00,0.5, 493.88,0.5, 587.33,0.5, 493.88,0.5,
@@ -863,71 +862,37 @@ const MEL2=[
   349.23,0.5,  392.00,1.5,
   0,0.5,
 ];
-function initAudio(){if(audioCtx)return;audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+// ── Element àudio pel MP3 ──
+const _bgAudio = new Audio('8_bit.mp3');
+_bgAudio.loop = true;
+_bgAudio.volume = 0.55;
+
+function initAudio(){
+  if(audioCtx)return;
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+}
 function pN(freq,startTime,duration,type,vol){if(!audioCtx||freq===0)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.setValueAtTime(freq,startTime);g.gain.setValueAtTime(0,startTime);g.gain.linearRampToValueAtTime(vol,startTime+0.01);g.gain.setValueAtTime(vol,startTime+duration*0.65);g.gain.linearRampToValueAtTime(0,startTime+duration*0.95);o.connect(g);g.connect(audioCtx.destination);o.start(startTime);o.stop(startTime+duration+0.05);musicNodes.push(o);}
 function pDrum(type,startTime){if(!audioCtx)return;const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*0.12,audioCtx.sampleRate),data=buf.getChannelData(0);if(type==='kick'){for(let i=0;i<data.length;i++)data[i]=Math.sin(2*Math.PI*60*i/audioCtx.sampleRate)*Math.exp(-i/(audioCtx.sampleRate*0.04));}else if(type==='snare'){for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(audioCtx.sampleRate*0.05));}else{for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(audioCtx.sampleRate*0.012));}const src=audioCtx.createBufferSource(),g=audioCtx.createGain();const vol=type==='kick'?0.2:type==='snare'?0.12:0.04;g.gain.setValueAtTime(vol,startTime);g.gain.linearRampToValueAtTime(0,startTime+0.1);src.buffer=buf;src.connect(g);g.connect(audioCtx.destination);src.start(startTime);musicNodes.push(src);}
-function scheduleMusic(){
-  if(!audioCtx||!musicPlaying)return;
-  const start=audioCtx.currentTime+0.05;
-
-  // ── Melodia (triangle wave — so suau i càlid, no agressiu) ──
-  let t=start;
-  for(let i=0;i<MEL2.length;i+=2){
-    const freq=MEL2[i],dur=MEL2[i+1]*B2;
-    pN(freq,t,dur,'triangle',0.10);
-    // Harmonia suau una quinta per sota
-    if(freq>0) pN(freq*0.667,t,dur*0.8,'triangle',0.03);
-    t+=dur;
-  }
-  const totalDur=t-start;
-  const nBars=Math.ceil(totalDur/(4*B2));
-
-  // ── Baix suau (sine wave — molt càlid) ──
-  const bassNotes=[98.00,98.00,130.81,146.83]; // G G C D
-  for(let bar=0;bar<nBars;bar++){
-    const bs=start+bar*4*B2;
-    const bn=bassNotes[bar%bassNotes.length];
-    // Baix en negres simples, sense pressa
-    [0,1,2,3].forEach(beat=>{
-      pN(bn,bs+beat*B2,B2*0.7,'sine',0.08);
-    });
-  }
-
-  // ── Acords suaus (square wave tènue) ──
-  const chords=[
-    [196.00,246.94,293.66], // G
-    [196.00,246.94,293.66], // G
-    [261.63,329.63,392.00], // C
-    [293.66,369.99,440.00], // D
-  ];
-  for(let bar=0;bar<nBars;bar++){
-    const bs=start+bar*4*B2;
-    const ch=chords[bar%chords.length];
-    // Acords en temps 1 i 3 — lleuger, com una caixa de música
-    [0,2].forEach(beat=>{
-      ch.forEach(f=>pN(f,bs+beat*B2,B2*0.6,'square',0.018));
-    });
-  }
-
-  // ── Percussió molt lleugera (sols hihat suau) ──
-  for(let bar=0;bar<nBars;bar++){
-    const bs=start+bar*4*B2;
-    // Kick suau al 1
-    pDrum('kick',bs);
-    pDrum('kick',bs+2*B2);
-    // Snare molt suau al 2 i 4
-    pDrum('snare',bs+B2);
-    pDrum('snare',bs+3*B2);
-    // Hihat en negres (no en corxeres — menys frenètic)
-    for(let h=0;h<4;h++) pDrum('hihat',bs+h*B2);
-  }
-
-  musicScheduler=setTimeout(()=>{if(musicPlaying)scheduleMusic();},(totalDur-0.3)*1000);
+function scheduleMusic(){} // substituït per MP3
+function startMusic(){
+  initAudio();
+  if(musicPlaying)return;
+  musicPlaying=true;
+  _bgAudio.play().catch(()=>{});
+  document.getElementById('musicBtn').textContent='🔇';
 }
-function startMusic(){initAudio();if(musicPlaying)return;musicPlaying=true;if(audioCtx.state==='suspended')audioCtx.resume();scheduleMusic();document.getElementById('musicBtn').textContent='🔇';}
-function pauseMusic(){musicPlaying=false;clearTimeout(musicScheduler);musicNodes.forEach(n=>{try{n.stop();}catch(e){}});musicNodes=[];}
-function resumeMusic(){if(audioCtx&&!musicPlaying)startMusic();}
-function toggleMusic(){if(musicPlaying){pauseMusic();document.getElementById('musicBtn').textContent='🎵';}else{startMusic();document.getElementById('musicBtn').textContent='🔇';}}
+function pauseMusic(){
+  musicPlaying=false;
+  _bgAudio.pause();
+}
+function resumeMusic(){
+  if(!musicPlaying) startMusic();
+}
+function toggleMusic(){
+  if(musicPlaying){pauseMusic();document.getElementById('musicBtn').textContent='🎵';}
+  else{startMusic();document.getElementById('musicBtn').textContent='🔇';}
+}
+// Sons 8-bit per als efectes del joc (saltar, nigiris) segueixen usant Web Audio
 document.addEventListener('click',function onF(){startMusic();document.removeEventListener('click',onF);},{once:true});
 document.addEventListener('touchstart',function onFT(){startMusic();document.removeEventListener('touchstart',onFT);},{once:true,passive:true});
 </script>
