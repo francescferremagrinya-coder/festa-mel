@@ -27,6 +27,15 @@
       const items=[];snap.forEach(ch=>items.push({id:ch.key,...ch.val()}));cb(items.reverse());
     });
   };
+  window._fbPushRanking = async (entry) => {
+    await push(ref(db,'ranking'),entry);
+  };
+  window._fbListenRanking = (cb) => {
+    onValue(query(ref(db,'ranking'),orderByChild('score')),snap=>{
+      const items=[];snap.forEach(ch=>items.push({id:ch.key,...ch.val()}));
+      cb(items.reverse());
+    });
+  };
   window._fbReady=true;window.dispatchEvent(new Event('fbready'));
 </script>
 <style>
@@ -96,7 +105,7 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
 .mem-win-title{font-family:'Fredoka One',cursive;font-size:1.8rem;color:var(--purple);}
 
 /* VÍDEO PREMI */
-#videoprize{position:fixed;inset:0;background:#000;z-index:500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:0;}
+#videoprize{position:fixed;inset:0;background:#000;z-index:600;display:none;flex-direction:column;align-items:center;justify-content:center;gap:0;}
 #prizeVideo{width:100%;max-width:500px;max-height:80vh;display:block;object-fit:contain;}
 .btn-closevid{background:white;color:var(--purple);border:none;padding:10px 28px;border-radius:50px;font-family:'Fredoka One',cursive;font-size:1rem;cursor:pointer;margin-top:10px;}
 
@@ -209,7 +218,7 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
       Hem preparat jocs perquè els nens celebrin el dia de la Mel! 🎉<br>
       <span class="warn">⏱️ Màxim 3 minuts</span> i tot s'atura sol. Gràcies! 🙏
     </div>
-    <button class="btn-start-big" onclick="startGlobalTimer();showScreen('memoryIntro')">Jugar! 🎉</button>
+    <button class="btn-start-big" onclick="startGlobalTimer();checkMemoryDone()">Jugar! 🎉</button>
   </div>
 </div>
 
@@ -240,8 +249,16 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
 
 <!-- ══ VÍDEO PREMI ══ -->
 <div id="videoprize">
-  <video id="prizeVideo" src="video.mp4" playsinline controls style="width:100%;max-width:500px;max-height:75vh;display:block;"></video>
-  <button class="btn-closevid" onclick="closeVideo()">Continuar als jocs! 🎮</button>
+  <!-- Placeholder (quan no hi ha vídeo) -->
+  <div id="videoPH" style="display:none;flex-direction:column;align-items:center;gap:16px;text-align:center;padding:30px;">
+    <div style="font-size:4rem;animation:bounce .6s ease infinite alternate;">🎬</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:1.5rem;color:#FFD93D;">Carregant vídeo...</div>
+    <button id="btnCloseVidPH" class="btn-closevid" onclick="closeVideo()" style="display:none;">Continuar als jocs! 🎮</button>
+  </div>
+  <!-- Vídeo real -->
+  <video id="prizeVideo" playsinline controls preload="none"
+    style="width:100%;max-width:500px;max-height:72vh;display:block;"></video>
+  <button id="btnCloseVid" class="btn-closevid" onclick="closeVideo()">Continuar als jocs! 🎮</button>
 </div>
 
 <!-- ══ MENÚ JOCS (desbloquejat després del Memory) ══ -->
@@ -361,13 +378,31 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
 
 <!-- ══ WIN MARIO ══ -->
 <div class="screen" id="marioWin">
-  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:14px;text-align:center;padding:60px 28px 40px;">
-    <div style="font-size:5rem;animation:bounce .6s ease infinite alternate;">🐸</div>
-    <div style="font-family:'Fredoka One',cursive;font-size:2.1rem;color:var(--mint);">Has trobat<br>la Froggy!</div>
-    <div id="marioWinScore" style="color:#888;font-size:.92rem;font-weight:700;line-height:1.8;"></div>
-    <button class="btn-primary" onclick="startMario()">🔄 Jugar de nou</button>
-    <button class="btn-menu" onclick="showScreen('menu')" style="max-width:220px;">← Menú jocs</button>
+  <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:12px;text-align:center;padding:56px 24px 32px;">
+    <div style="font-size:4rem;animation:bounce .6s ease infinite alternate;">🐸</div>
+    <div style="font-family:'Fredoka One',cursive;font-size:1.9rem;color:var(--mint);">Has trobat la Froggy!</div>
+    <div id="marioWinScore" style="color:#888;font-size:.88rem;font-weight:700;line-height:1.8;"></div>
+    <!-- Formulari ranking -->
+    <div id="rankForm" style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:260px;">
+      <div style="font-family:'Fredoka One',cursive;font-size:1rem;color:var(--purple);">Afegeix-te al ranking! 🏆</div>
+      <input id="rankName" type="text" placeholder="El teu nom" maxlength="20"
+        style="padding:10px 16px;border:2.5px solid #e0d0f0;border-radius:50px;font-family:'Nunito',sans-serif;font-size:1rem;font-weight:700;color:#555;outline:none;background:white;-webkit-appearance:none;text-align:center;"/>
+      <button class="btn-primary" onclick="saveRanking()" style="font-size:1.1rem;padding:12px;">Guardar puntuació 🏆</button>
+    </div>
+    <button class="btn-menu" onclick="showRanking()" style="max-width:230px;border-color:#FF9A3C;color:#FF9A3C;">🏆 Veure Ranking</button>
+    <button class="btn-menu pink" onclick="startMario()" style="max-width:230px;">🔄 Jugar de nou</button>
+    <button class="btn-menu" onclick="showScreen('menu')" style="max-width:230px;">← Menú</button>
   </div>
+</div>
+
+<!-- ══ RANKING ══ -->
+<div class="screen" id="rankingScreen" style="background:linear-gradient(135deg,#FFF0F7,#F5EEFF);padding-bottom:40px;">
+  <div style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:56px 16px 12px;">
+    <div style="font-family:'Fredoka One',cursive;font-size:1.6rem;color:#FF9A3C;">🏆 Ranking</div>
+    <button class="btn-back" onclick="showScreen('menu')">← Menú</button>
+  </div>
+  <div id="rankingList" style="width:100%;padding:0 16px;display:flex;flex-direction:column;gap:10px;"></div>
+  <button class="btn-menu pink" onclick="startMario()" style="max-width:260px;margin-top:16px;">🔄 Jugar de nou</button>
 </div>
 
 <!-- Botó música flotant -->
@@ -383,6 +418,16 @@ const MEM_IMGS=[
 ];
 
 // ── UTILS ──
+function checkMemoryDone(){
+  try{
+    if(localStorage.getItem('mel4_memDone_v2')==='1'){
+      // Ja ha fet el memory — anar directament al menú
+      showScreen('menu');
+      return;
+    }
+  }catch(e){}
+  showScreen('memoryIntro');
+}
 function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 function escHtml(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -414,7 +459,9 @@ function renderGlobalTimer(){
   el.classList.toggle('urgent',gTimerSecs<=30);
 }
 function blockDevice(){
-  if(marioRAF)cancelAnimationFrame(marioRAF);
+  if(marioRAF){cancelAnimationFrame(marioRAF);marioRAF=null;}
+  GM.dead=true;GM.won=true;
+  pauseMusic();
   showScreen('timeout');
   document.body.style.overflow='hidden';
   document.getElementById('globalTimer').classList.remove('visible');
@@ -428,10 +475,19 @@ function blockDevice(){
 // ══════════════════════════════
 function showVideoPrize(){
   pauseMusic();
-  const vp=document.getElementById('videoprize');
-  vp.style.display='flex';
+  document.getElementById('videoprize').style.display='flex';
   const v=document.getElementById('prizeVideo');
-  v.currentTime=0;v.play().catch(()=>{});
+  v.style.display='block';
+  document.getElementById('btnCloseVid').style.display='block';
+  document.getElementById('videoPH').style.display='none';
+  // Assignar src dinàmicament per forçar càrrega
+  if(!v.src||v.src===window.location.href){
+    v.src='video.mp4';
+  }
+  v.load();
+  v.play().catch(()=>{
+    // Autoplay bloquejat — l'usuari pot prémer play manualment
+  });
 }
 function closeVideo(){
   const v=document.getElementById('prizeVideo');
@@ -476,7 +532,11 @@ function checkMatch(){
     a.classList.add('matched');b.classList.add('matched');memMatched++;
     document.getElementById('memScore').textContent=memMatched+' / 4';
     if(navigator.vibrate)navigator.vibrate([40,20,80]);
-    if(memMatched===4){setTimeout(()=>{launchConfetti();document.getElementById('memGrid').style.display='none';document.getElementById('memWin').style.display='flex';},600);}
+    if(memMatched===4){
+      // Guardar que el memory s'ha completat
+      try{localStorage.setItem('mel4_memDone_v2','1');}catch(e){}
+      setTimeout(()=>{launchConfetti();document.getElementById('memGrid').style.display='none';document.getElementById('memWin').style.display='flex';},600);
+    }
   }else{
     a.classList.remove('flipped');b.classList.remove('flipped');
     if(navigator.vibrate)navigator.vibrate([30,20,30]);
@@ -572,11 +632,61 @@ function floodFill(ctx,sx,sy,fc){const cv=ctx.canvas,W=cv.width,H=cv.height;if(s
 function resetColoring(){const cv=document.getElementById('colorCanvas');drawCB(cv.getContext('2d'),cv.width);colorHist=[];saveH();}
 
 // DEDICATÒRIES
-function showDed(tab){showScreen('dedicatoria');switchTab(tab);}
+function showDed(tab){
+  showScreen('dedicatoria');
+  switchTab(tab);
+  // Afegir stopPropagation als camps de text via JS (més fiable que atributs HTML)
+  ['dedName','dedText'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el&&!el._spAdded){
+      el._spAdded=true;
+      el.addEventListener('keydown',e=>e.stopPropagation(),true);
+      el.addEventListener('keyup',e=>e.stopPropagation(),true);
+      el.addEventListener('keypress',e=>e.stopPropagation(),true);
+    }
+  });
+}
 function switchTab(tab){document.getElementById('tabWrite').classList.toggle('active',tab==='write');document.getElementById('tabRead').classList.toggle('active',tab==='read');document.getElementById('dedFormWrap').style.display=tab==='write'?'flex':'none';document.getElementById('dedFormWrap').style.flexDirection='column';document.getElementById('dedPortalWrap').style.display=tab==='read'?'flex':'none';document.getElementById('dedPortalWrap').style.flexDirection='column';if(tab==='read')loadDeds();}
 function updateChars(){document.getElementById('dedChars').textContent=document.getElementById('dedText').value.length+' / 300';}
 function newDed(){document.getElementById('dedOk').style.display='none';document.getElementById('dedForm').style.display='flex';}
-async function sendDed(){const name=document.getElementById('dedName').value.trim()||'Anònim';const text=document.getElementById('dedText').value.trim();if(!text){document.getElementById('dedText').style.borderColor='var(--pink)';document.getElementById('dedText').focus();return;}const btn=document.getElementById('btnSend');btn.disabled=true;btn.textContent='Enviant... ⏳';try{await window._fbPush(name,text);document.getElementById('dedForm').style.display='none';document.getElementById('dedOk').style.display='flex';document.getElementById('dedName').value='';document.getElementById('dedText').value='';document.getElementById('dedChars').textContent='0 / 300';launchConfetti();}catch(e){btn.disabled=false;btn.textContent='Enviar 💌';alert('Error en enviar. Comprova la connexió!');}}
+async function sendDed(){
+  const name=document.getElementById('dedName').value.trim()||'Anònim';
+  const text=document.getElementById('dedText').value.trim();
+  if(!text){
+    document.getElementById('dedText').style.borderColor='var(--pink)';
+    document.getElementById('dedText').focus();
+    return;
+  }
+  const btn=document.getElementById('btnSend');
+  btn.disabled=true;btn.textContent='Enviant... ⏳';
+  // Esperar que Firebase estigui llest
+  const doSend=async()=>{
+    try{
+      await window._fbPush(name,text);
+      document.getElementById('dedForm').style.display='none';
+      document.getElementById('dedOk').style.display='flex';
+      document.getElementById('dedName').value='';
+      document.getElementById('dedText').value='';
+      document.getElementById('dedChars').textContent='0 / 300';
+      launchConfetti();
+    }catch(e){
+      console.error('Firebase error:',e);
+      btn.disabled=false;btn.textContent='Enviar 💌';
+      alert('Error en enviar: '+e.message+'. Comprova la connexió a internet!');
+    }
+  };
+  if(window._fbReady){doSend();}
+  else{
+    btn.textContent='Esperant connexió... ⏳';
+    window.addEventListener('fbready',doSend,{once:true});
+    setTimeout(()=>{
+      if(btn.disabled&&btn.textContent!=='Enviant... ⏳'){
+        btn.disabled=false;btn.textContent='Enviar 💌';
+        alert("No s\u2019ha pogut connectar. Comprova el WiFi!");
+      }
+    },8000);
+  }
+}
 let dedUnsub=null;
 function loadDeds(){document.getElementById('dedLoading').style.display='flex';document.getElementById('dedPortal').innerHTML='';document.getElementById('dedCount').textContent='';if(dedUnsub)return;const ready=()=>{window._fbListen(items=>{document.getElementById('dedLoading').style.display='none';const portal=document.getElementById('dedPortal');portal.innerHTML='';if(items.length===0){portal.innerHTML='<div class="ded-empty">Encara no hi ha dedicatòries 💕<br><br>Sigues el primer!</div>';document.getElementById('dedCount').textContent='';return;}document.getElementById('dedCount').textContent='💌 '+items.length+' dedicatòri'+(items.length===1?'a':'es');items.forEach(d=>{const card=document.createElement('div');card.className='ded-card';card.innerHTML=`<div class="ded-card-from">De: ${escHtml(d.name)}<span class="ded-card-time">${fmtTime(d.timestamp)}</span></div><div class="ded-card-text">${escHtml(d.text)}</div><div class="ded-card-heart">💕</div>`;portal.appendChild(card);});});dedUnsub=true;};if(window._fbReady)ready();else window.addEventListener('fbready',ready,{once:true});}
 
@@ -608,11 +718,19 @@ function startMario(){
   const jmp=()=>{if(!GM.dead&&!GM.won&&GM.onGround){GM.vy=gJUMP;GM.onGround=false;gPlayJ();}};
   document.getElementById('jumpBtn').onclick=jmp;
   cv.onclick=jmp;cv.ontouchstart=e=>{e.preventDefault();jmp();};
-  document.onkeydown=e=>{if(e.code==='Space'||e.code==='ArrowUp'){e.preventDefault();jmp();}};
+  document.onkeydown=e=>{
+    // No interceptar si l'usuari escriu en un camp de text
+    const el=document.activeElement;
+    if(el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.isContentEditable)) return;
+    if(e.code==='Space'||e.key===' '||e.code==='ArrowUp'){e.preventDefault();jmp();}
+  };
   if(marioRAF)cancelAnimationFrame(marioRAF);
   gLoop2();
 }
-function stopMario(){if(marioRAF)cancelAnimationFrame(marioRAF);marioRAF=null;GM.dead=true;}
+function stopMario(){
+  if(marioRAF){cancelAnimationFrame(marioRAF);marioRAF=null;}
+  GM.dead=true;GM.won=true; // evitar que els sons continuïn
+}
 
 function genWorld2(){
   // Terra amb forats
@@ -636,17 +754,15 @@ function genWorld2(){
     if(p.t!=='g') continue; // només terra
     if(p.w<80) continue;    // segments massa curts, no
     // Posar 1-2 coffees per segment llarg
-    const nDogs = p.w>300 ? 2 : 1;
-    for(let d=0;d<nDogs;d++){
-      const cx = p.x + p.w*0.25 + d*(p.w*0.4);
-      gCoffees.push({
-        x: cx, y: p.y-34, w:32, h:34,
-        vx:(Math.random()>0.5?1:-1)*1.5,
-        alive:true, vy:0,
-        // Límits del segment on viu aquest coffee
-        minX: p.x+10, maxX: p.x+p.w-42
-      });
-    }
+    // Només 1 Coffee per segment, i només en segments amplis
+    if(p.w < 150) continue;
+    const cx = p.x + p.w*0.4 + Math.random()*p.w*0.2;
+    gCoffees.push({
+      x: cx, y: p.y-34, w:32, h:34,
+      vx:(Math.random()>0.5?1:-1)*1.4,
+      alive:true, vy:0,
+      minX: p.x+16, maxX: p.x+p.w-48
+    });
   }
   // Nigiris al terra
   let nx2=300;
@@ -679,9 +795,24 @@ function gUpdate2(){
       if(c.x>=c.maxX){c.x=c.maxX;c.vx=-Math.abs(c.vx);}
     }
     const cx=c.x-cam;if(cx<-50||cx>gCW+50)continue;
-    // Col·lisió — UN TOC = MORT (sense mode gran)
-    if(GM.x+GM.w-6>cx&&GM.x+6<cx+c.w&&GM.y+GM.h>c.y&&GM.y<c.y+c.h){
-      gSpawn2(cx+c.w/2,c.y,'#FF5050');gOver2();return;
+    // Col·lisió amb Coffee
+    if(GM.x+GM.w-10>cx&&GM.x+10<cx+c.w&&GM.y+GM.h>c.y&&GM.y<c.y+c.h){
+      // Saltat al damunt: la Mel ve de dalt (vy>0) i el seu peu és al terç superior del Coffee
+      const melFoot=GM.y+GM.h;
+      const coffeeTop=c.y;
+      const coffeeThird=c.y+c.h*0.45;
+      if(melFoot<=coffeeThird+6&&GM.vy>=0){
+        // REBOT MARIO! Coffee desapareix
+        c.alive=false;
+        GM.vy=gJUMP*0.8;
+        gSpawn2(cx+c.w/2,c.y,'#FFD700');
+        gSpawn2(cx+c.w/2,c.y,'#F5A623');
+        gPlayB();
+      } else if(GM.y+GM.h>c.y+6){
+        // Toc lateral o per sota = mort
+        gSpawn2(cx+c.w/2,c.y,'#FF5050');
+        gOver2();return;
+      }
     }
   }
   // Nigiris
@@ -735,37 +866,95 @@ function gDraw2(){
 function gMelDraw2(ctx,x,y,fn,og){
   ctx.save();ctx.translate(x+1,y);
   const run=og&&(fn%12<6);
-  // Cabell llarg darrere
-  ctx.fillStyle='#5C3317';ctx.fillRect(2,4,4,26);ctx.fillRect(22,4,4,24);ctx.fillRect(3,26,3,6);ctx.fillRect(22,26,3,6);
-  // Sabates
-  ctx.fillStyle='#22337A';ctx.fillRect(run?3:4,40,10,6);ctx.fillRect(run?17:16,40,10,6);
-  ctx.fillStyle='#3344AA';ctx.fillRect(run?3:4,40,10,3);ctx.fillRect(run?17:16,40,3,3);
-  // Cames
-  ctx.fillStyle='#FCCFA8';ctx.fillRect(5,32,8,run?10:8);ctx.fillRect(15,32,8,run?8:10);
-  // Tutú
-  ctx.fillStyle='#FFB3D9';ctx.fillRect(1,27,26,7);ctx.fillStyle='#FF80C0';ctx.fillRect(0,29,28,4);
-  ctx.fillStyle='#FFD6EC';for(let i=0;i<6;i++)ctx.fillRect(i*5,31,4,3+(i%2)*2);
-  // Samarreta + cor
+
+  // ── MELENA LLARGA DARRERE (castanya, cau fins a l'esquena) ──
+  ctx.fillStyle='#6B3A1F';
+  ctx.fillRect(2,3,4,30);   // costat esquerre
+  ctx.fillRect(22,3,4,28);  // costat dret
+  // Ondulació melena
+  ctx.fillRect(1,22,4,8);ctx.fillRect(23,22,4,8);
+  ctx.fillRect(2,28,3,6);ctx.fillRect(23,28,3,6);
+  ctx.fillStyle='#7D4422';  // reflex llum
+  ctx.fillRect(3,10,2,16);ctx.fillRect(23,10,2,14);
+
+  // ── SABATES blaves ──
+  ctx.fillStyle='#22337A';
+  ctx.fillRect(run?3:4,40,10,6);ctx.fillRect(run?17:16,40,10,6);
+  ctx.fillStyle='#3344AA';
+  ctx.fillRect(run?3:4,40,10,3);ctx.fillRect(run?17:16,40,3,3);
+
+  // ── CAMES (pell) ──
+  ctx.fillStyle='#FCCFA8';
+  ctx.fillRect(5,32,8,run?10:8);ctx.fillRect(15,32,8,run?8:10);
+
+  // ── TUTÚ rosa multicapa ──
+  ctx.fillStyle='#FFB3D9';ctx.fillRect(1,27,26,7);
+  ctx.fillStyle='#FF80C0';ctx.fillRect(0,29,28,4);
+  ctx.fillStyle='#FFD6EC';
+  for(let i=0;i<6;i++)ctx.fillRect(i*5,31,4,3+(i%2)*2);
+
+  // ── SAMARRETA blanca amb cor ──
   ctx.fillStyle='#FFFFFF';ctx.fillRect(5,15,18,13);
-  ctx.fillStyle='#FF4D88';ctx.fillRect(10,18,3,3);ctx.fillRect(15,18,3,3);ctx.fillRect(9,20,10,3);ctx.fillRect(10,22,8,3);ctx.fillRect(11,24,6,2);
-  // Jaqueta texans
+  ctx.fillStyle='#FF4D88';
+  ctx.fillRect(10,18,3,3);ctx.fillRect(15,18,3,3);
+  ctx.fillRect(9,20,10,3);ctx.fillRect(10,22,8,3);ctx.fillRect(11,24,6,2);
+
+  // ── JAQUETA TEXANS ──
   ctx.fillStyle='#4A7EC7';ctx.fillRect(5,15,4,12);ctx.fillRect(19,15,4,12);
-  ctx.fillStyle='#FFD700';ctx.fillRect(6,18,2,2);ctx.fillRect(6,22,2,2);ctx.fillRect(20,18,2,2);ctx.fillRect(20,22,2,2);
-  // Braços
-  ctx.fillStyle='#FCCFA8';ctx.fillRect(0,16,5,10);ctx.fillRect(23,16,5,10);ctx.fillRect(0,25,5,4);ctx.fillRect(23,25,5,4);
-  // Cap
-  ctx.fillStyle='#FCCFA8';ctx.fillRect(5,1,18,16);ctx.fillRect(4,3,20,12);
-  // Cabell davant
-  ctx.fillStyle='#6B3A1F';ctx.fillRect(4,1,20,5);ctx.fillRect(4,1,3,9);ctx.fillRect(21,1,3,8);
-  ctx.fillStyle='#7D4422';ctx.fillRect(5,5,3,3);ctx.fillRect(10,4,4,4);ctx.fillRect(16,4,4,4);ctx.fillRect(20,5,3,3);
-  // Ulleres sol roses grans
-  ctx.fillStyle='#FF4D88';ctx.fillRect(5,8,9,7);ctx.fillRect(14,8,9,7);ctx.fillRect(13,10,2,3);
-  ctx.fillStyle='#1A1A2E';ctx.fillRect(6,9,7,5);ctx.fillRect(15,9,7,5);
-  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.fillRect(7,9,3,2);ctx.fillRect(16,9,3,2);
-  ctx.fillStyle='#FF4D88';ctx.fillRect(4,9,2,4);ctx.fillRect(22,9,2,4);
-  // Somriure + galtes
-  ctx.fillStyle='#CC5533';ctx.fillRect(10,13,8,2);ctx.fillRect(9,12,2,2);ctx.fillRect(17,12,2,2);
-  ctx.fillStyle='rgba(255,150,150,0.35)';ctx.fillRect(5,12,4,4);ctx.fillRect(19,12,4,4);
+  ctx.fillStyle='#FFD700';
+  ctx.fillRect(6,18,2,2);ctx.fillRect(6,22,2,2);
+  ctx.fillRect(20,18,2,2);ctx.fillRect(20,22,2,2);
+
+  // ── BRAÇOS ──
+  ctx.fillStyle='#FCCFA8';
+  ctx.fillRect(0,16,5,10);ctx.fillRect(23,16,5,10);
+  ctx.fillRect(0,25,5,4);ctx.fillRect(23,25,5,4);
+
+  // ── CAP (pell) ──
+  ctx.fillStyle='#FCCFA8';
+  ctx.fillRect(5,2,18,16);ctx.fillRect(4,4,20,12);
+
+  // ── CABELL DAVANT amb SERRELL ──
+  ctx.fillStyle='#6B3A1F';
+  // Part superior i costats
+  ctx.fillRect(4,2,20,4);
+  ctx.fillRect(3,2,3,10);ctx.fillRect(22,2,3,9);
+  // SERRELL: trossos que cauen per la front
+  ctx.fillStyle='#5C3117';
+  ctx.fillRect(5,5,3,5);   // tros serrell esquerre
+  ctx.fillRect(9,4,3,6);   // tros serrell centre-esq
+  ctx.fillRect(13,4,3,5);  // tros serrell centre
+  ctx.fillRect(17,4,3,6);  // tros serrell centre-dret
+  ctx.fillRect(20,5,3,4);  // tros serrell dret
+  // Reflex llum al cabell
+  ctx.fillStyle='#8B5030';
+  ctx.fillRect(10,2,5,3);
+
+  // ── ULLS EXPRESSIUS (sense ulleres) ──
+  // Ulls grans
+  ctx.fillStyle='#1A1A2E';
+  ctx.fillRect(7,9,5,5);ctx.fillRect(16,9,5,5);
+  // Iris marró
+  ctx.fillStyle='#4A2800';
+  ctx.fillRect(8,10,3,3);ctx.fillRect(17,10,3,3);
+  // Brillantor
+  ctx.fillStyle='white';
+  ctx.fillRect(9,10,2,2);ctx.fillRect(18,10,2,2);
+  // Pestanyes superiors
+  ctx.fillStyle='#1A1A2E';
+  ctx.fillRect(7,8,2,2);ctx.fillRect(9,8,2,1);ctx.fillRect(11,8,1,2);
+  ctx.fillRect(16,8,2,2);ctx.fillRect(18,8,2,1);ctx.fillRect(20,8,1,2);
+
+  // ── NAS petit ──
+  ctx.fillStyle='#E8A882';
+  ctx.fillRect(13,13,2,2);
+
+  // ── SOMRIURE + GALTES ──
+  ctx.fillStyle='#CC5533';
+  ctx.fillRect(10,15,8,2);ctx.fillRect(9,14,2,2);ctx.fillRect(17,14,2,2);
+  ctx.fillStyle='rgba(255,140,140,0.4)';
+  ctx.fillRect(5,13,4,4);ctx.fillRect(19,13,4,4);
+
   ctx.restore();
 }
 
@@ -831,10 +1020,103 @@ function gFroggyDraw2(ctx,x,y){
 function gCloud2(ctx,x,y,w){ctx.fillStyle='rgba(255,255,255,0.82)';ctx.beginPath();ctx.arc(x,y,w*0.3,0,Math.PI*2);ctx.arc(x+w*0.26,y-w*0.1,w*0.22,0,Math.PI*2);ctx.arc(x+w*0.52,y,w*0.28,0,Math.PI*2);ctx.fill();}
 function gMountain2(ctx,x,gy){ctx.fillStyle='#6B9E5E';ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x+130,gy-230);ctx.lineTo(x+260,gy);ctx.fill();ctx.fillStyle='#5A8A4E';ctx.beginPath();ctx.moveTo(x+60,gy);ctx.lineTo(x+130,gy-230);ctx.lineTo(x+200,gy);ctx.fill();ctx.fillStyle='white';ctx.beginPath();ctx.moveTo(x+130,gy-230);ctx.lineTo(x+103,gy-175);ctx.lineTo(x+157,gy-175);ctx.fill();}
 function gSpawn2(x,y,c){for(let i=0;i<8;i++)gParticles.push({x,y,vx:(Math.random()-0.5)*5,vy:-Math.random()*5-2,l:20,c,s:4+Math.random()*4});}
-function gPlayJ(){if(!audioCtx)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='square';o.frequency.setValueAtTime(300,audioCtx.currentTime);o.frequency.exponentialRampToValueAtTime(600,audioCtx.currentTime+0.1);g.gain.setValueAtTime(0.12,audioCtx.currentTime);g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.12);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+0.15);}
-function gPlayN(){if(!audioCtx)return;[523,659,784,1047].forEach((f,i)=>{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='square';o.frequency.value=f;g.gain.setValueAtTime(0.1,audioCtx.currentTime+i*0.07);g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+i*0.07+0.1);o.connect(g);g.connect(audioCtx.destination);o.start(audioCtx.currentTime+i*0.07);o.stop(audioCtx.currentTime+i*0.07+0.12);});}
+function gPlayJ(){
+  if(!audioCtx||!marioRAF) return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='square';o.frequency.setValueAtTime(300,audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(600,audioCtx.currentTime+0.1);
+  g.gain.setValueAtTime(0.12,audioCtx.currentTime);g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.12);
+  o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+0.15);
+}
+function gPlayB(){
+  if(!audioCtx||!marioRAF) return;
+  const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+  o.type='square';o.frequency.setValueAtTime(200,audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(80,audioCtx.currentTime+0.15);
+  g.gain.setValueAtTime(0.12,audioCtx.currentTime);g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+0.15);
+  o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+0.15);
+}
+function gPlayN(){
+  if(!audioCtx||!marioRAF) return; // només si el joc està actiu
+  [523,659,784,1047].forEach((f,i)=>{
+    const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+    o.type='square';o.frequency.value=f;
+    g.gain.setValueAtTime(0.1,audioCtx.currentTime+i*0.07);
+    g.gain.linearRampToValueAtTime(0,audioCtx.currentTime+i*0.07+0.1);
+    o.connect(g);g.connect(audioCtx.destination);
+    o.start(audioCtx.currentTime+i*0.07);
+    o.stop(audioCtx.currentTime+i*0.07+0.12);
+  });
+}
 function gOver2(){if(marioRAF)cancelAnimationFrame(marioRAF);GM.dead=true;gCtx.fillStyle='rgba(0,0,0,0.65)';gCtx.fillRect(0,0,gCW,gCH);gCtx.fillStyle='white';gCtx.font=`bold ${Math.round(gCW*0.08)}px Fredoka One,cursive`;gCtx.textAlign='center';gCtx.fillText('💀 Game Over',gCW/2,gCH/2-16);gCtx.font=`${Math.round(gCW*0.048)}px Nunito,sans-serif`;gCtx.fillText('Torna-ho a intentar!',gCW/2,gCH/2+18);setTimeout(()=>startMario(),2200);}
-function gWin2(){if(marioRAF)cancelAnimationFrame(marioRAF);GM.won=true;document.getElementById('marioWinScore').innerHTML='🍣 Nigiris: '+gNigiris.filter(n=>n.got).length+'<br>⭐ Coffees evitats: '+gCoffees.filter(c=>!c.alive).length;setTimeout(()=>{launchConfetti();showScreen('marioWin');resumeMusic();},700);}
+function gWin2(){
+  if(marioRAF)cancelAnimationFrame(marioRAF);
+  GM.won=true;
+  const nigiris=gNigiris.filter(n=>n.got).length;
+  const coffees=gCoffees.filter(c=>!c.alive).length;
+  const score=nigiris*100+coffees*50+Math.floor(GM.dist/10);
+  GM._finalScore=score;
+  document.getElementById('marioWinScore').innerHTML=
+    '🍣 Nigiris: '+nigiris+'<br>'+
+    '🐾 Coffees: '+coffees+'<br>'+
+    '⭐ Puntuació: <strong>'+score+'</strong>';
+  document.getElementById('rankForm').style.display='flex';
+  document.getElementById('rankName').value='';
+  setTimeout(()=>{launchConfetti();showScreen('marioWin');resumeMusic();},700);
+}
+
+async function saveRanking(){
+  const name=document.getElementById('rankName').value.trim();
+  if(!name) return;
+  const score=GM._finalScore||0;
+  const entry={name,score,timestamp:Date.now()};
+  // Guardar a Firebase
+  try{
+    if(window._fbPushRanking) await window._fbPushRanking(entry);
+    else{
+      // Fallback localStorage
+      const arr=JSON.parse(localStorage.getItem('mel4_ranking')||'[]');
+      arr.push(entry);arr.sort((a,b)=>b.score-a.score);
+      localStorage.setItem('mel4_ranking',JSON.stringify(arr.slice(0,20)));
+    }
+  }catch(e){
+    const arr=JSON.parse(localStorage.getItem('mel4_ranking')||'[]');
+    arr.push(entry);arr.sort((a,b)=>b.score-a.score);
+    localStorage.setItem('mel4_ranking',JSON.stringify(arr.slice(0,20)));
+  }
+  document.getElementById('rankForm').style.display='none';
+  showRanking();
+}
+
+function showRanking(){
+  showScreen('rankingScreen');
+  const list=document.getElementById('rankingList');
+  list.innerHTML='<div style="text-align:center;color:#bbb;padding:12px;">Carregant...</div>';
+  const renderList=(entries)=>{
+    entries.sort((a,b)=>b.score-a.score);
+    const top=entries.slice(0,10);
+    if(top.length===0){list.innerHTML='<div style="text-align:center;color:#bbb;padding:20px;">Encara no hi ha puntuacions!</div>';return;}
+    list.innerHTML=top.map((e,i)=>{
+      const medals=['🥇','🥈','🥉'];
+      const med=medals[i]||'⭐';
+      const bg=i===0?'linear-gradient(135deg,#FFF3CC,#FFE566)':i===1?'linear-gradient(135deg,#F0F0F0,#E0E0E0)':i===2?'linear-gradient(135deg,#FFE8D6,#FFD4B0)':'white';
+      return `<div style="background:${bg};border-radius:16px;padding:12px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 3px 10px rgba(0,0,0,0.07);">
+        <span style="font-size:1.5rem;">${med}</span>
+        <span style="font-family:'Fredoka One',cursive;font-size:1.1rem;color:#555;flex:1;text-align:left;">${escHtml(e.name)}</span>
+        <span style="font-family:'Fredoka One',cursive;font-size:1.2rem;color:var(--orange);">${e.score} pts</span>
+      </div>`;
+    }).join('');
+  };
+  // Intentar Firebase
+  let tries=0;
+  const tryLoad=()=>{
+    if(window._fbListenRanking){window._fbListenRanking(renderList);return;}
+    if(tries++<15){setTimeout(tryLoad,300);return;}
+    // Fallback localStorage
+    try{renderList(JSON.parse(localStorage.getItem('mel4_ranking')||'[]'));}catch(e){renderList([]);}
+  };
+  tryLoad();
+}
 
 // ══════════════════════════════
 // MÚSICA 8-BIT REGGAE
@@ -862,37 +1144,84 @@ const MEL2=[
   349.23,0.5,  392.00,1.5,
   0,0.5,
 ];
-// ── Element àudio pel MP3 ──
-const _bgAudio = new Audio('8_bit.mp3');
-_bgAudio.loop = true;
-_bgAudio.volume = 0.55;
-
+let _bgAudio=null, _bgAudioFailed=false;
+function getAudio(){
+  if(_bgAudioFailed) return null;
+  if(!_bgAudio){
+    _bgAudio=new Audio();
+    _bgAudio.loop=true;
+    _bgAudio.volume=0.25;
+    _bgAudio.onerror=()=>{
+      console.log('MP3 no disponible, usant música generada');
+      _bgAudioFailed=true;
+      _bgAudio=null;
+      // Activar música generada com a fallback
+      _useGeneratedMusic=true;
+    };
+    _bgAudio.src="8_bit.mp3";
+  }
+  return _bgAudio;
+}
+let _useGeneratedMusic=false;
 function initAudio(){
   if(audioCtx)return;
   audioCtx=new(window.AudioContext||window.webkitAudioContext)();
 }
 function pN(freq,startTime,duration,type,vol){if(!audioCtx||freq===0)return;const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type=type;o.frequency.setValueAtTime(freq,startTime);g.gain.setValueAtTime(0,startTime);g.gain.linearRampToValueAtTime(vol,startTime+0.01);g.gain.setValueAtTime(vol,startTime+duration*0.65);g.gain.linearRampToValueAtTime(0,startTime+duration*0.95);o.connect(g);g.connect(audioCtx.destination);o.start(startTime);o.stop(startTime+duration+0.05);musicNodes.push(o);}
 function pDrum(type,startTime){if(!audioCtx)return;const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*0.12,audioCtx.sampleRate),data=buf.getChannelData(0);if(type==='kick'){for(let i=0;i<data.length;i++)data[i]=Math.sin(2*Math.PI*60*i/audioCtx.sampleRate)*Math.exp(-i/(audioCtx.sampleRate*0.04));}else if(type==='snare'){for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(audioCtx.sampleRate*0.05));}else{for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(audioCtx.sampleRate*0.012));}const src=audioCtx.createBufferSource(),g=audioCtx.createGain();const vol=type==='kick'?0.2:type==='snare'?0.12:0.04;g.gain.setValueAtTime(vol,startTime);g.gain.linearRampToValueAtTime(0,startTime+0.1);src.buffer=buf;src.connect(g);g.connect(audioCtx.destination);src.start(startTime);musicNodes.push(src);}
-function scheduleMusic(){} // substituït per MP3
+function scheduleMusic(){}
+// Música generada — fallback si no hi ha MP3
+const _B2=60/112;
+const _MEL=[392,0.5,493.88,0.5,587.33,0.5,493.88,0.5,392,0.5,349.23,0.5,392,1,0,0.25,493.88,0.5,587.33,0.5,659.25,0.5,587.33,0.5,493.88,0.5,440,0.5,392,1,0,0.25,392,0.25,440,0.25,493.88,0.5,523.25,0.25,587.33,0.25,659.25,0.5,587.33,0.5,493.88,0.25,440,0.25,392,0.5,349.23,0.5,392,0.5,493.88,0.5,587.33,0.5,659.25,0.5,587.33,0.25,493.88,0.25,440,0.5,392,0.5,349.23,0.5,392,1.5,0,0.5];
+function scheduleGeneratedMusic(){
+  if(!audioCtx||!musicPlaying) return;
+  const start=audioCtx.currentTime+0.05;
+  let t=start;
+  for(let i=0;i<_MEL.length;i+=2){
+    const f=_MEL[i],d=_MEL[i+1]*_B2;
+    if(f>0&&audioCtx){
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.type='triangle';o.frequency.value=f;
+      g.gain.setValueAtTime(0,start);g.gain.linearRampToValueAtTime(0.05,t+0.01);
+      g.gain.setValueAtTime(0.05,t+d*0.7);g.gain.linearRampToValueAtTime(0,t+d*0.95);
+      o.connect(g);g.connect(audioCtx.destination);
+      o.start(t);o.stop(t+d+0.05);
+      musicNodes.push(o);
+    }
+    t+=d;
+  }
+  const total=t-start;
+  musicScheduler=setTimeout(()=>{if(musicPlaying&&_useGeneratedMusic)scheduleGeneratedMusic();},(total-0.2)*1000);
+}
 function startMusic(){
-  initAudio();
   if(musicPlaying)return;
   musicPlaying=true;
-  _bgAudio.play().catch(()=>{});
+  const a=getAudio();
+  if(a){
+    a.play().catch(e=>{
+      console.log('audio:',e);
+      // Fallback: música generada
+      _useGeneratedMusic=true;
+      scheduleGeneratedMusic();
+    });
+  } else if(_useGeneratedMusic){
+    scheduleGeneratedMusic();
+  }
   document.getElementById('musicBtn').textContent='🔇';
 }
 function pauseMusic(){
   musicPlaying=false;
-  _bgAudio.pause();
+  const a=getAudio();
+  if(a) a.pause();
+  clearTimeout(musicScheduler);
+  musicNodes.forEach(n=>{try{n.stop();}catch(e){}});
+  musicNodes=[];
 }
-function resumeMusic(){
-  if(!musicPlaying) startMusic();
-}
+function resumeMusic(){if(!musicPlaying)startMusic();}
 function toggleMusic(){
   if(musicPlaying){pauseMusic();document.getElementById('musicBtn').textContent='🎵';}
   else{startMusic();document.getElementById('musicBtn').textContent='🔇';}
 }
-// Sons 8-bit per als efectes del joc (saltar, nigiris) segueixen usant Web Audio
 document.addEventListener('click',function onF(){startMusic();document.removeEventListener('click',onF);},{once:true});
 document.addEventListener('touchstart',function onFT(){startMusic();document.removeEventListener('touchstart',onFT);},{once:true,passive:true});
 </script>
