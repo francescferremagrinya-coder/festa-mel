@@ -4,39 +4,59 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Festa Mel 4 anys 🎉</title>
-<!-- Firebase SDK -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getDatabase, ref, push, onValue, query, orderByChild } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-  const firebaseConfig = {
-    apiKey: "AIzaSyCpCTWE9bOEr93XRQVHXJ_9frjKrGmdG-4",
-    authDomain: "festa-mel.firebaseapp.com",
-    databaseURL: "https://festa-mel-default-rtdb.firebaseio.com",
-    projectId: "festa-mel",
-    storageBucket: "festa-mel.firebasestorage.app",
-    messagingSenderId: "751712081487",
-    appId: "1:751712081487:web:536776a10543bd3d6f3c3a"
+<!-- Firebase via REST API (sense SDK, 100% fiable) -->
+<script>
+const FB_URL='https://festa-mel-default-rtdb.firebaseio.com';
+
+window._fbPush=async(name,text)=>{
+  const r=await fetch(FB_URL+'/dedicatories.json',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name,text,timestamp:Date.now()})
+  });
+  if(!r.ok) throw new Error('Error '+r.status);
+};
+
+window._fbListen=(cb)=>{
+  const poll=async()=>{
+    try{
+      const r=await fetch(FB_URL+'/dedicatories.json');
+      const data=await r.json();
+      const items=data?Object.entries(data).map(([k,v])=>({id:k,...v})).sort((a,b)=>b.timestamp-a.timestamp):[];
+      cb(items);
+    }catch(e){cb([]);}
   };
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  window._fbPush = async (name, text) => {
-    await push(ref(db,'dedicatories'),{name,text,timestamp:Date.now()});
+  poll();
+  // Actualitzar cada 5 segons
+  if(window._dedInterval) clearInterval(window._dedInterval);
+  window._dedInterval=setInterval(poll,5000);
+};
+
+window._fbPushRanking=async(entry)=>{
+  const r=await fetch(FB_URL+'/ranking.json',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(entry)
+  });
+  if(!r.ok) throw new Error('Error '+r.status);
+};
+
+window._fbListenRanking=(cb)=>{
+  const poll=async()=>{
+    try{
+      const r=await fetch(FB_URL+'/ranking.json');
+      const data=await r.json();
+      const items=data?Object.entries(data).map(([k,v])=>({id:k,...v})).sort((a,b)=>b.score-a.score):[];
+      cb(items);
+    }catch(e){cb([]);}
   };
-  window._fbListen = (cb) => {
-    onValue(query(ref(db,'dedicatories'),orderByChild('timestamp')),snap=>{
-      const items=[];snap.forEach(ch=>items.push({id:ch.key,...ch.val()}));cb(items.reverse());
-    });
-  };
-  window._fbPushRanking = async (entry) => {
-    await push(ref(db,'ranking'),entry);
-  };
-  window._fbListenRanking = (cb) => {
-    onValue(query(ref(db,'ranking'),orderByChild('score')),snap=>{
-      const items=[];snap.forEach(ch=>items.push({id:ch.key,...ch.val()}));
-      cb(items.reverse());
-    });
-  };
-  window._fbReady=true;window.dispatchEvent(new Event('fbready'));
+  poll();
+  if(window._rankInterval) clearInterval(window._rankInterval);
+  window._rankInterval=setInterval(poll,5000);
+};
+
+window._fbReady=true;
+window.dispatchEvent(new Event('fbready'));
 </script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap');
@@ -480,14 +500,9 @@ function showVideoPrize(){
   v.style.display='block';
   document.getElementById('btnCloseVid').style.display='block';
   document.getElementById('videoPH').style.display='none';
-  // Assignar src dinàmicament per forçar càrrega
-  if(!v.src||v.src===window.location.href){
-    v.src='video.mp4';
-  }
+  v.src='video.mp4';
   v.load();
-  v.play().catch(()=>{
-    // Autoplay bloquejat — l'usuari pot prémer play manualment
-  });
+  v.play().catch(()=>{});
 }
 function closeVideo(){
   const v=document.getElementById('prizeVideo');
