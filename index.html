@@ -269,16 +269,9 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
 
 <!-- ══ VÍDEO PREMI ══ -->
 <div id="videoprize">
-  <!-- Placeholder (quan no hi ha vídeo) -->
-  <div id="videoPH" style="display:none;flex-direction:column;align-items:center;gap:16px;text-align:center;padding:30px;">
-    <div style="font-size:4rem;animation:bounce .6s ease infinite alternate;">🎬</div>
-    <div style="font-family:'Fredoka One',cursive;font-size:1.5rem;color:#FFD93D;">Carregant vídeo...</div>
-    <button id="btnCloseVidPH" class="btn-closevid" onclick="closeVideo()" style="display:none;">Continuar als jocs! 🎮</button>
-  </div>
-  <!-- Vídeo real -->
-  <video id="prizeVideo" src="video.mp4" playsinline controls preload="metadata"
-    style="width:100%;max-width:500px;max-height:72vh;display:block;"></video>
-  <button id="btnCloseVid" class="btn-closevid" onclick="closeVideo()">Continuar als jocs! 🎮</button>
+  <video id="prizeVideo" playsinline controls
+    style="width:100%;max-width:500px;max-height:75vh;display:block;background:#000;"></video>
+  <button class="btn-closevid" onclick="closeVideo()" style="margin-top:12px;">Continuar als jocs! 🎮</button>
 </div>
 
 <!-- ══ MENÚ JOCS (desbloquejat després del Memory) ══ -->
@@ -498,15 +491,16 @@ function showVideoPrize(){
   pauseMusic();
   document.getElementById('videoprize').style.display='flex';
   const v=document.getElementById('prizeVideo');
-  v.style.display='block';
-  document.getElementById('btnCloseVid').style.display='block';
-  document.getElementById('videoPH').style.display='none';
-  v.currentTime=0;
+  // URL absoluta per evitar problemes de ruta relativa
+  const base=window.location.href.replace(/\/[^\/]*$|\?.*$/,'');
+  v.src=base+'/video.mp4';
+  v.load();
   v.play().catch(()=>{});
 }
 function closeVideo(){
   const v=document.getElementById('prizeVideo');
-  v.pause();v.currentTime=0;
+  v.pause();
+  v.currentTime=0;
   document.getElementById('videoprize').style.display='none';
   resumeMusic();
   showScreen('menu');
