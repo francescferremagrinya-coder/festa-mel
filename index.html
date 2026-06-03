@@ -276,7 +276,7 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
     <button id="btnCloseVidPH" class="btn-closevid" onclick="closeVideo()" style="display:none;">Continuar als jocs! 🎮</button>
   </div>
   <!-- Vídeo real -->
-  <video id="prizeVideo" playsinline controls preload="none"
+  <video id="prizeVideo" src="video.mp4" playsinline controls preload="metadata"
     style="width:100%;max-width:500px;max-height:72vh;display:block;"></video>
   <button id="btnCloseVid" class="btn-closevid" onclick="closeVideo()">Continuar als jocs! 🎮</button>
 </div>
@@ -388,6 +388,7 @@ body{font-family:'Nunito',sans-serif;min-height:100vh;display:flex;flex-directio
   <div class="mario-bar">
     <button class="btn-back" onclick="stopMario();showScreen('menu')">← Menú</button>
     <div id="marioScore" style="font-family:'Fredoka One',cursive;font-size:1rem;color:var(--purple);background:white;padding:4px 12px;border-radius:50px;box-shadow:0 2px 8px rgba(199,125,255,0.15);">🍣 0</div>
+    <button class="btn-back" onclick="stopMario();showRanking()" style="border-color:#FF9A3C;color:#FF9A3C;border:2.5px solid #FF9A3C;">🏆</button>
   </div>
   <canvas id="marioCanvas" style="width:calc(100% - 28px);max-width:452px;border-radius:14px;box-shadow:0 8px 28px rgba(255,107,157,0.18);touch-action:none;display:block;margin:0 14px;"></canvas>
   <div style="display:flex;gap:10px;width:100%;padding:10px 14px 0;">
@@ -500,8 +501,7 @@ function showVideoPrize(){
   v.style.display='block';
   document.getElementById('btnCloseVid').style.display='block';
   document.getElementById('videoPH').style.display='none';
-  v.src='video.mp4';
-  v.load();
+  v.currentTime=0;
   v.play().catch(()=>{});
 }
 function closeVideo(){
