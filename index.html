@@ -1109,13 +1109,17 @@ function showRanking(){
   };
   // Intentar Firebase
   let tries=0;
-  const tryLoad=()=>{
-    if(window._fbListenRanking){window._fbListenRanking(renderList);return;}
-    if(tries++<15){setTimeout(tryLoad,300);return;}
-    // Fallback localStorage
-    try{renderList(JSON.parse(localStorage.getItem('mel4_ranking')||'[]'));}catch(e){renderList([]);}
+  const tryLoad=(tries)=>{
+    if(window._fbReady&&window._fbListenRanking){
+      window._fbListenRanking(renderList); // temps real
+    } else if(tries<25){
+      setTimeout(()=>tryLoad(tries+1),300);
+    } else {
+      // Fallback localStorage
+      try{renderList(JSON.parse(localStorage.getItem('mel4_ranking')||'[]'));}catch(e){renderList([]);}
+    }
   };
-  tryLoad();
+  tryLoad(0);
 }
 
 // ══════════════════════════════
